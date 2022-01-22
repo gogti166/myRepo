@@ -3,7 +3,8 @@
 #include <FL/Fl_Button.H>
 #include "fota_tool.h"
 #include "common.h"
-#include "tcp.h"
+//#include "tcp.h"
+#include "socket.h"
 
 int main(int argc, char* argv[])
 {
@@ -34,12 +35,26 @@ void vButtonConnect(Fl_Widget* ThisButton)
 {
 	if (boGbConnected == false)
 	{
-		printf("11\n");
-		Tcp_tstPcb* stCliPcb = Tcp_vConnect(vConnected);
+
+        int iSock = iSocket(AF_INET, SOCK_STREAM, 0);
+        if (iSock < 0)
+        {
+            printf("Connect fail");
+        }
+        else
+        {
+            tstSockAddrIn stPanelSockdAddrIn;
+            stPanelSockdAddrIn.sin_u8family = AF_INET;
+            stPanelSockdAddrIn.sin_stAddr.u32Addr = u32Ipv4ToInt(REMOTE_IP);
+            stPanelSockdAddrIn.sin_u16Port = TCP_DEST_PORT;
+            iConnect(iSock, (tstSockAddr*)&stPanelSockdAddrIn, sizeof(stPanelSockdAddrIn));
+        }
+		printf("connect\n");
+		
 	}
 	else
 	{
-		printf("dis\n");
+		printf("disconnect\n");
 		TCP_vClose();
 	}
 	

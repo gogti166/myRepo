@@ -1,28 +1,26 @@
+#ifndef __COMMON_H__
+#define __COMMON_H__
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <vector>
 
-#include <sys/stat.h>
-#include <errno.h>
+#include <ace/OS.h>
+#include <ace/Thread.h>
 
-#include <WS2tcpip.h>
+#include "thread.h"
+#include "timer.h"
 
-#include "ace/Task.h"
-#include "ace/OS.h"
-#include "ace/Message_Block.h"
-#include "ace/Thread.h"
-#include "ace/Semaphore.h"
-
-#include <ace/Select_Reactor.h>
-
-#include <pcap.h>
+//#include <sys/stat.h>
+//#include <errno.h>
+//#include "ace/Message_Block.h"
+//
 
 #include "config.h"
+#include "cdef.h"
+#include "err.h"
 
 using namespace std;
-
-
 /*****************************************************************
 *                             cdef                               *
 ******************************************************************/
@@ -32,21 +30,51 @@ using namespace std;
 #define     BLOCK     True
 #define     UNBLOCK   False
 
-//typedef unsigned char        bool;
-typedef unsigned char        uint8;
-typedef unsigned short       uint16;
-typedef unsigned int         uint32;
-typedef unsigned long long   uint64;
+#define     MAX_VALUE(x, y)   (((x) > (y)) ? (x) : (y))
+#define     MIN_VALUE(x, y)   (((x) < (y)) ? (x) : (y))
 
-/* | PduId(4Bytes) | PduLength(4Bytes) | PduData | */
-#define PDU_HEADER_LEN      8
+
+#define     BYTE_LEN  1024
+#define     HEX       16
+
+///* | PduId(4Bytes) | PduLength(4Bytes) | PduData | */
+//#define PDU_HEADER_LEN      8
 
 /*****************************************************************
 *                             ethernet                           *
 ******************************************************************/
+/* This pseudo header is used to calculate TCP/UDP checksum */
+typedef struct psudhdr
+{
+    uint32 u32SrcIP;
+    uint32 u32DstIP;
+    uint16 u16Zero : 8;
+    uint16 u16Proto : 8;
+    uint16 u16TotLen;
+}tstPsudHdr;
 
+typedef struct stPackageBuf
+{
+    uint8 *u8Payload;
+    /* Length of ETH+IP+TCP(UDP)+DATA */
+    uint16 u16Len;
+}tstPbuf;
 
-#define ETH_ALEN 6
+//typedef enum ETHSOAD_enSocCastType
+//{
+//    /** No cast mechanism for TCP. */
+//    ETHSOAD_nenNone = 0,
+//
+//    /** UDP Unicast. */
+//    ETHSOAD_nenUnicast,
+//
+//    /** UDP Multicast. */
+//    ETHSOAD_nenMulticast,
+//
+//    /** UDP Broadcast. */
+//    ETHSOAD_nenBroadcast
+//}ETHSOAD_tenSocCastType;
+
 
 /******************************************************************
 *                              Fota                               *
@@ -96,8 +124,6 @@ typedef struct ETHTP_stStartEndMsg
     uint32      u32CurrentSize;
 }ETHTP_tstStartEndMsg;
 
-
-
 /* enum and structure */
 enum FOTA__enEthTPMsgID
 {
@@ -116,6 +142,26 @@ typedef struct ETHSOAD_tstPduInfoType
     /*pointer to the PDU payload*/
     //uint8* EthSoAd__pu8PduDataPtr;
 }ETHIL_tstPDUInfoType;
+
+
+#define PBUF_LINK_ENCAPSULATION_HLEN  0 //NO vlan
+#define PBUF_LINK_HLEN                14 
+#define PBUF_IP_HLEN                  20
+#define PBUF_TCP_HLEN                 20
+#define PBUF_UDP_HLEN                 8
+
+typedef enum
+{
+    PBUF_TCP = PBUF_LINK_ENCAPSULATION_HLEN + PBUF_LINK_HLEN + PBUF_IP_HLEN + PBUF_TCP_HLEN,//PBUF_TRANSPORT
+    PBUF_UDP = PBUF_LINK_ENCAPSULATION_HLEN + PBUF_LINK_HLEN + PBUF_IP_HLEN + PBUF_UDP_HLEN,
+    PBUF_IP = PBUF_LINK_ENCAPSULATION_HLEN + PBUF_LINK_HLEN + PBUF_IP_HLEN,
+}Pbuf_tenLayer;
+
+typedef enum
+{
+    PBUF_RAM,
+    PBUF_REF,
+}Pbuf_tenType;
 
 typedef struct TCP_stAuth
 {
@@ -145,24 +191,82 @@ typedef enum
     nenERR_MCU_FlashFail = 0x1D
 }FOTA__tenErrorCode;
 
+/******************************************************************
+*                              PDU                                *
+*******************************************************************/
+/*========= PDU CLU_24_200ms-Tx ==========*/
+//#define ETHCOM_PDU_CLU_24_200ms_SIZE  (0x10)
+//typedef union
+//{
+//    /* User messages */
+//    struct  {
+//        uint64 CLU_Crc24Val : 16;
+//        uint64 CLU_AlvCnt24Val : 8;
+//        uint64 CLU_ErrorCode : 6;
+//        uint64 CLU_UpdateDataTransferError : 1;
+//        uint64 CLU_UpdateCondition_Crank : 2;
+//        uint64 CLU_UpdateCondition_PPositon : 2;
+//        uint64 CLU_UpdateCondition_ParkBrake : 2;
+//        uint64 CLU_UpdateCondition_Lamp : 2;
+//        uint64 CLU_UpdateCondition_Hood : 2;
+//        uint64 unused41 : 23;
+//        uint64 CLU_UpdateTotalSize : 32;
+//        uint64 CLU_UpdateCurrentSize : 32;
+//    }ETHCOM_stPduCLU_24_200ms;
+//    /* Byte array */
+//    uint8 pdu[ETHCOM_PDU_CLU_24_200ms_SIZE];
+//}PDU_tunCLU_24_200ms;
+
+
+/******************************************************************
+*                       data defination                           *
+*******************************************************************/
+
+//typedef enum
+//{
+//    nenMsg_621,
+//    nenMsg_Max
+//}ETHSOAD_tenArrMsgID;
+
+//typedef struct ETHSOAD_stUDPSocket
+//{
+//    ETHSOAD_tenArrMsgID enArrayId;
+//
+//    uint32                  u32PduId;
+//    uint32                  u32PduLength;
+//    uint8*                  u8pPduDataPtr;
+//
+//    ETHSOAD_tenSocCastType  enSocCastType;
+//    string      strDestIPAddr;
+//    uint16      u16DestPortNum;
+//    string      strSrcIPAddr;
+//    uint16      u16SrcPortNum;
+//}ETHSOAD_tstUDPSocket;
 
 /******************************************************************
 *                           Function                              *
 *******************************************************************/
 void vInit();
+
+//typedef struct Tcp_stPcb Tcp_tstPcb;
+uint16 u16TcpUdpCheckSum(uint8*, uint8*, uint8*, uint16);
 void vSeqUpdate(uint16 u16DataLen);
 
 //uint16 vFillTcpPackage(ETHTP_tenDataType u8PshFLag);
 //uint16 vFillUdpPackage(ETHSOAD_tenArrMsgID enArrId);
 void vSendAuth();
 /* This function is used to send TCP message, if u8Buffer is NULL, send only TCP header without payload. */
-void vSendTcpMsg(pcap_t* ifd, uint8* u8Buffer, uint16 u16DataLen);
+void vTcpOutputPackage(pcap_t* ifd, uint8* u8Buffer, uint16 u16DataLen);
 void vSendUdpMsg(pcap_t* ifd, uint8* u8Buffer, uint16 u16DataLen);
 void vTcpHandler(uint8* u8Data, uint32 u32Len);
-//void vUdpHandler(uint8* u8Data, uint32 u32Len);
-/* This function is used to request the first handshake. */
-void vRequestConnect();
+void vUdpHandler(uint8* u8Data, uint32 u32Len);
 
+void vUpdateProcess(uint8);
+
+uint32 u32Ipv4ToInt(const char*);
+void vMacToInt(const char*, uint8*);
+
+tstPbuf* pstCreatePbuf(Pbuf_tenLayer, uint16, Pbuf_tenType);
 
 /*****************************************************************
 *                             code                               *
@@ -198,7 +302,7 @@ extern uint32  u32DestIpAddr;
 tcp content
 ***********************/
 extern uint32  u32Seq;
-extern uint32  u32Ack_seq;
+extern uint32  u32AckSeq;
 extern uint8   u8ACK;
 extern uint8   u8SYN;
 extern uint8   u8PSH;
@@ -207,7 +311,7 @@ extern uint8   u8FIN;
 /**********************
 common content
 ***********************/
-extern uint8   u8LinkHdrLen;
+extern uint8   u8EthHdrLen;
 extern uint8   u8EthVhdrLen;
 extern uint8   u8IpHdrLen;
 extern uint8   u8TcpHdrLen;
@@ -221,7 +325,7 @@ extern uint32 u32PrgLength;
 /*****************************************************************
 *                            test                                *
 ******************************************************************/
-extern PDU_tunCLU_24_200ms       as_CLU_24_200ms;
+//extern PDU_tunCLU_24_200ms       as_CLU_24_200ms;
 //extern ETHSOAD_tstUDPSocket      ETHSOAD_stUDPconfig[];
 
 typedef enum
@@ -239,22 +343,11 @@ typedef enum
     TEST_NoCheck,
 }TEST_tenCheckItem;
 
-typedef enum
-{
-    Timer_nenCycle200ms,
-    Timer_nenCycle2000ms,
-    nenTimer_Number
-}Timer_tenCycle;
-
-typedef struct
-{
-    long   lTimeHandle;
-    uint8  u8TimeId;
-    bool   boStart;
-    /*uint32 u32Delay;
-    uint32 u32Interval;*/
-}tstTimer;
-
-//extern Timer* clGeneralTimer;
+//typedef enum
+//{
+//	ERR_OK = 0,
+//}tenErr;
+//extern Timer* UptTimer;
 
 #define FULL_UPDATE
+#endif

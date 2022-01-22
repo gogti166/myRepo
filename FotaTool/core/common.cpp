@@ -447,10 +447,10 @@ tstPbuf* pstCreatePbuf(Pbuf_tenLayer enLayer, uint16 u16DataLen, Pbuf_tenType en
     uint16 u16LayerLen = (uint16)enLayer;
     switch (enType)
     {
-    case PBUF_COPY:
+    case PBUF_RAM:/* Allocate a memory to hold "Ethernet header + IP header + TCP header" and "Data" on RAM */
         if ((pstPbuf = (tstPbuf*)malloc(sizeof(tstPbuf) + u16LayerLen + u16DataLen)) == NULL)
         {
-            ACE_DEBUG((LM_INFO, ACE_TEXT("Pbuf copy\n")));
+            ACE_DEBUG((LM_INFO, ACE_TEXT("Pbuf RAM\n")));
             return NULL;
         }
         else

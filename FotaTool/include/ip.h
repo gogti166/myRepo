@@ -4,7 +4,7 @@
 #include "cdef.h"
 #include "tcp.h"
 #include "udp.h"
-
+#include "ip_addr.h"
 
 #define   IP_HLEN     20
 

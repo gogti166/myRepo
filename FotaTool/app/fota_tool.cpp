@@ -41,7 +41,7 @@ void Tool_vFullUpdate(Tcp_tstPcb* stCliPcb)
             memset(pBuffer, 0x00, SEND_BUFFER_SZIE);
             u32ReadLen = fread(pBuffer, 1, SEND_BUFFER_SZIE, Fd);
             /* Write to TCP buffer and send. */
-            Tcp_vWrite(stCliPcb, (uint8*)pBuffer, SEND_BUFFER_SZIE);
+            Tcp_vWrite(stCliPcb, (uint8*)pBuffer, SEND_BUFFER_SZIE, 0);
             u32Transmitted = u32Transmitted + u32ReadLen;
             if (boTrigSend == False)
             {

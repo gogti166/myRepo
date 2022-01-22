@@ -4,6 +4,8 @@
 #include "cdef.h"
 #include "common.h"
 #include "ace/Semaphore.h"
+#include "ip_addr.h"
+
 
 #define   TCP_FLAGS     0x3fU
 #define   INITIAL_MSS   536
@@ -14,9 +16,13 @@
 #define TCP_HLEN    20
 #define SND_WINDOW  32*1024
 
+/* Flags for "apiflags" parameter in tcp_write */
+#define TCP_WRITE_FLAG_COPY 0x01
+#define TCP_WRITE_FLAG_MORE 0x02
+
 struct Tcp_stPcb;
 //typedef void(*TCP_vConnectedCbk)(void *vArg, struct Tcp_stPcb *pstpcb, tenErr enErr);
-typedef void(*TCP_vConnectedCbk)();
+typedef void(*TCP_tvConnectedCbk)(void* vArg);
 
 typedef struct  
 {
@@ -95,7 +101,7 @@ typedef struct Tcp_stPcb
     uint8 u8TcpInFlags;
 
     uint32 u32AckSeq;//LastAck
-    uint32 u32SndNxt;//snd_nxt
+    uint32 u32SendNxt;//snd_nxt
 
     uint32 u32BuffSeq;//u32SndLbb;
     /* Available buffer space for sending (in bytes). */
@@ -127,20 +133,28 @@ typedef struct Tcp_stPcb
     /* actual package */
     //ETHTP_stDataMsg  stEthDataMsg;
 
-	TCP_vConnectedCbk TCP_vConnectedCallback;
+    void* vCbkArg;
+    TCP_tvConnectedCbk TCP_vConnectedCbk;
 
 }Tcp_tstPcb;
 
 extern Tcp_tstPcb  *pstActivePcbs;
 
+#define API_SOCKET
 
 Tcp_tstPcb *Tcp_pstAllocPcb();
 void vFreeSegment(Tcp_tstSeg*);
 /* This function is used to create a Tcp header. */
 Tcp_tstHdr* Tcp_pstFormatHeader(Tcp_tstPcb*, tstPbuf*, uint8, uint32);
-Tcp_tstPcb *Tcp_vConnect(TCP_vConnectedCbk);
+
+#ifndef API_SOCKET
+Tcp_tstPcb *Tcp_vConnect(TCP_vConnectedCbk vConnectCbk);
+#else
+tenErr Tcp_enConnect(Tcp_tstPcb* stPcb, const tstIpAddr *stIpAddr, const uint16 u16Port);
+#endif
+
 /* This function is used to write user data into a 32KB buffer. */
-void Tcp_vWrite(Tcp_tstPcb*, uint8*, uint16);
+void Tcp_vWrite(Tcp_tstPcb *pstPcb, const uint8 *u8Data, uint16 u16TotalDataLen, uint8 u8Flags);
 void Tcp_vOutputSeg(Tcp_tstPcb*);
 void Tcp_vInputSeg(tstPbuf*);
 void Tcp_vProcess(Tcp_tstPcb*);

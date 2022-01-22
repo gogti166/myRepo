@@ -106,7 +106,7 @@ void Tcp_vProcess(Tcp_tstPcb *pstPcb)
 			/* We are now in a state that connection has been established. */
 			pstPcb->enState = ESTABLISHED;
 			/* Notify user of successful connection */
-			pstPcb->TCP_vConnectedCallback();
+            pstPcb->TCP_vConnectedCbk(pstPcb->vCbkArg);
 			/* Calculate MSS */
 			/*pstPcb->u16Mss = 1460;//from option bytes*/
 			pstPcb->u8TcpCtrlFlags = pstPcb->u8TcpCtrlFlags | ACK_NOW;
@@ -133,13 +133,13 @@ void Tcp_vProcess(Tcp_tstPcb *pstPcb)
 	case FIN_WAIT_1:
 		if (pstPcb->u8TcpInFlags & TCP_FIN)
 		{
-			if ((pstPcb->u8TcpInFlags & TCP_ACK) && (u32AckSeq == pstPcb->u32SndNxt))
+            if ((pstPcb->u8TcpInFlags & TCP_ACK) && (u32AckSeq == pstPcb->u32SendNxt))
 			{
 
 			}
 		}
 		/* We received a ACK from remoter after sent the FIN */
-		else if ((pstPcb->u8TcpInFlags & TCP_ACK) && (u32AckSeq == pstPcb->u32SndNxt))
+        else if ((pstPcb->u8TcpInFlags & TCP_ACK) && (u32AckSeq == pstPcb->u32SendNxt))
 		{
 			printf("FIN_WAIT_1\n");
 			pstPcb->enState = FIN_WAIT_2;
@@ -174,9 +174,9 @@ void Tcp_vInputSeg(tstPbuf *pstPbuf)
 	ACE_DEBUG((LM_INFO, ACE_TEXT("InAckSeq:%u\n"), u32AckSeq));
 
 	/*addw 收到的ack大于曾经发出去过的sequence+len,说明这是一个错误的ack,因为ack只会小于或等于已经发出去的数据大小*/
-	if (u32AckSeq > pstPcb->u32SndNxt)
+    if (u32AckSeq > pstPcb->u32SendNxt)
 	{
-		printf("Ack-snd:%d-%d\n", u32AckSeq, pstPcb->u32SndNxt);
+        printf("Ack-snd:%d-%d\n", u32AckSeq, pstPcb->u32SendNxt);
 		/* note 192.168.10.02 的数据也会被接收处理，造成ack错误，从而出错*/
 		/* TODO: 是否要在IP层对src IP地址进行检查? */
 		ACE_DEBUG((LM_INFO, ACE_TEXT("Ack error\n")));

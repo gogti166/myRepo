@@ -58,7 +58,7 @@ void Tcp_vSplitSeg(Tcp_tstPcb *pstPcb, uint16 u16Split)
     /* The data length of second part. */
     uint16 u16LeftLen = pstSeg->u16DataLen - u16Split;//1480 - 1460 = 20
     /* Create a buf for second part. */
-    pstPbuf = pstCreatePbuf(PBUF_TCP, u16LeftLen, PBUF_COPY);
+    pstPbuf = pstCreatePbuf(PBUF_TCP, u16LeftLen, PBUF_RAM);
     /* Copy data from split point to payload of second part. */
     memcpy(pstPbuf->u8Payload, pstSeg->pu8DataPtr + u16Split, u16LeftLen);
     pstPbuf->u16Len = pstPbuf->u16Len + u16LeftLen;
@@ -100,6 +100,7 @@ Tcp_tstPcb *Tcp_pstAllocPcb()
     return pstPcb;
 }
 
+#ifndef API_SOCKET
 Tcp_tstPcb *Tcp_vConnect(TCP_vConnectedCbk vConnectCbk)
 {
     Tcp_tstPcb* pstCliPcb = NULL;
@@ -121,7 +122,7 @@ Tcp_tstPcb *Tcp_vConnect(TCP_vConnectedCbk vConnectCbk)
     //pstCliPcb->u16CgstWnd = 1;
     pstCliPcb->u16SendWnd = 4 * INITIAL_MSS;
     /* Creater a TCP segment without data. */
-    pstPbuf = pstCreatePbuf(PBUF_TCP, 0, PBUF_COPY);
+    pstPbuf = pstCreatePbuf(PBUF_TCP, 0, PBUF_RAM);
     /* The first segment of TCP communication, sequence should be 0. */
     pstSeg = Tcp_pstCreateSeg(pstCliPcb, pstPbuf, TCP_SYN, pstCliPcb->u32BuffSeq);
     /* We have sent a SYN-segment. */
@@ -137,6 +138,40 @@ Tcp_tstPcb *Tcp_vConnect(TCP_vConnectedCbk vConnectCbk)
     pstActivePcbs = pstCliPcb;
     return pstCliPcb;
 }
+#else
+tenErr Tcp_enConnect(Tcp_tstPcb* stPcb, const tstIpAddr *stIpAddr, const uint16 u16Port)
+{
+    tenErr enRet = enNoErr;
+    tstPbuf *pstPbuf = NULL;
+    Tcp_tstSeg* pstSeg = NULL;
+    /* Local Ip and port */
+    printf("02\n");
+    stPcb->u32LocalIp = u32Ipv4ToInt(LOCAL_IP);
+    stPcb->u16LocalPort = TCP_SOUR_PORT;
+    /* Remote Ip and port */
+    stPcb->u32RemoteIp = stIpAddr->u32Addr;
+    stPcb->u16RemotePort = u16Port;
+    printf("00\n");
+    /* Initilize acknowledgement sequence to 0 */
+    stPcb->u32AckSeq = 0;
+    /* Initilize the send windows */
+    stPcb->u16SendWnd = 4 * INITIAL_MSS;
+    /* Creater a TCP segment without data. */
+    pstPbuf = pstCreatePbuf(PBUF_TCP, 0, PBUF_RAM);
+    printf("03\n");
+    /* The first segment of TCP communication, sequence should be 0. */
+    pstSeg = Tcp_pstCreateSeg(stPcb, pstPbuf, TCP_SYN, stPcb->u32BuffSeq);
+    printf("04\n");
+    /* Send SYN-segment out to request the first handshake with server. */
+    Tcp_vOutputSeg(stPcb);
+    printf("05\n");
+    /* We are now in a state that SYN has been sent. */
+    stPcb->enState = SYN_SENT;
+    pstActivePcbs = stPcb;
+    printf("01\n");
+    return enRet;
+}
+#endif
 
 void TCP_vClose()
 {
@@ -148,89 +183,6 @@ void TCP_vClose()
 		pstPcb->enState = FIN_WAIT_1;
 		break;
 	}
-}
-
-void Tcp_vWrite(Tcp_tstPcb *pstPcb, uint8 *u8Data, uint16 u16TotalDataLen)
-{
-    uint16 u16SegCnt = 0;
-    uint16 u16SegLen = 0;
-    uint16 u16CurDataLen = 0;
-    tstPbuf *pstPbuf = NULL;
-    Tcp_tstSeg* pstSeg = NULL;
-    Tcp_tstSeg* pstQueue = NULL;
-    Tcp_tstSeg* pstCursor = NULL;
-    bool boCopyData = true;
-
-    /* TODO: should't allocate buffer for data always,use array*/
-
-    /* The data length have write is still less than the length need to write. */
-    while (u16CurDataLen < u16TotalDataLen)
-    {
-        u16SegCnt++;
-        /* Separate TCP if length is greater than MSS. */
-        u16SegLen = (u16SegCnt*MSS <= u16TotalDataLen ? MSS : (u16TotalDataLen % MSS));
-
-        if (boCopyData)
-        {   /* Create buf as format "ETH+IP+TCP+DATA" */
-            pstPbuf = pstCreatePbuf(PBUF_TCP, u16SegLen, PBUF_COPY);
-            memcpy(pstPbuf->u8Payload, u8Data + u16CurDataLen, u16SegLen);
-        }
-        else
-        {
-            /* Create buffer by "PBUF_TCP" that means its size consists of "ETH+IP+TCP" respective header */
-            pstPbuf = pstCreatePbuf(PBUF_TCP, 0, PBUF_REF);
-            /* ERROR: it will influnce tcphdr filling if change payload here!!! */
-            pstPbuf->u8Payload = u8Data + u16CurDataLen;
-        }
-        pstPbuf->u16Len = u16SegLen;
-        ACE_DEBUG((LM_INFO, ACE_TEXT("Set:%d-%d\n"), pstPcb->u32BuffSeq + u16CurDataLen, u16SegLen));
-        /* Create a segment with formated tcp header */
-        pstSeg = Tcp_pstCreateSeg(pstPcb, pstPbuf, (TCP_PSH | TCP_ACK), pstPcb->u32BuffSeq + u16CurDataLen);
-        /* Add the new segment into segment-queue. */
-        if (pstQueue == NULL)
-        {
-            pstQueue = pstSeg;
-        }
-        else
-        {
-            /* Add the new segment to the segment-queue tail. */
-            pstCursor->next = pstSeg;
-        }
-        pstCursor = pstSeg;
-        u16CurDataLen = u16CurDataLen + u16SegLen;
-    }
-    /* The buffer number. */
-    pstPcb->u32BuffSeq = pstPcb->u32BuffSeq + u16TotalDataLen;
-    /* The remaining buffer size. */
-    pstPcb->u16BuffSize = pstPcb->u16BuffSize - u16TotalDataLen;
-
-    /* All segments have inserted into segment-queue, delivery the segment-queue to Unsend-queue. */
-    if (pstPcb->pstUnsendFront == NULL)
-    {
-        pstPcb->pstUnsendFront = pstQueue; 
-    }
-    else
-    {
-        /* Connect the segment-queue to the Unsend-queue tail. */
-        pstPcb->pstUnsendRear->next = pstQueue;
-    }
-    /* Rear piont to the last node. */
-    pstPcb->pstUnsendRear = pstCursor;
-
-    /* 假设buffer中的最后一个queue member其sequence = 32121,len = 648发送出去,预料的ackSeq = 32769被Tcp_vInputSeg接收到,
-    Tcp_vInputSeg会先调用Tcp_vReceive将queue全部清空,因此当Tcp_vInputSeg在调用到Tcp_vOutputSeg时因为buffer为空,就不会发送出
-    任何数据,随后Tcp_vWrite抢占到时间片写入数据到buffer,但是只有等待Tcp_vInputSeg再次收到ackSeq = 32769触发Tcp_vOutputSeg,才能
-    将Tcp_vWrite填充的buffer发送出去,为了减少这样的等待时间,需要app主动调用Tcp_vOutputSeg,而现在的优化是不需要app调用Tcp_vOutputSeg,
-    因此需要在此处加入Tcp_vOutputSeg,即在Tcp_vWrite中调用Tcp_vOutputSeg*/
-
-
-    //ACE_DEBUG((LM_INFO, ACE_TEXT("u32AckSeq:%u\n"), pstPcb->u32AckSeq));
-    //ACE_DEBUG((LM_INFO, ACE_TEXT("u32BuffSeq:%u-%d\n"), pstPcb->u32BuffSeq + u16CurDataLen, u16CurDataLen));
-    if (pstPcb->u32AckSeq == ntohl(pstPcb->pstUnsendFront->pstTcphdr->u32Seq))//the sequence's acknowledgement has ever been received
-    {
-        ACE_DEBUG((LM_INFO, ACE_TEXT("WriteSend:%u\n"), u32AckSeq));
-        Tcp_vOutputSeg(pstPcb);
-    }
 }
 
 

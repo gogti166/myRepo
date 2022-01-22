@@ -74,7 +74,7 @@ void Udp_vSend(Udp_tstPcb *pstPcb, uint8* u8DataPtr, uint16 u16DataLen)
     tstPbuf *pstPbuf = NULL;
     Udp_tstHdr* pstUdphdr = NULL;
     /* Create buf as format "ETH+IP+UDP" */
-    pstPbuf = pstCreatePbuf(PBUF_UDP, u16DataLen, PBUF_COPY);
+    pstPbuf = pstCreatePbuf(PBUF_UDP, u16DataLen, PBUF_RAM);
     memcpy(pstPbuf->u8Payload, u8DataPtr, u16DataLen);
     pstPbuf->u16Len = u16DataLen;
     pstUdphdr = Udp_pstCreateHeader(pstPcb, pstPbuf, u16DataLen);
